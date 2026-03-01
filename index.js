@@ -63,7 +63,7 @@ function connect() {
     }
 
     if (event === "http_request") {
-      handleRequest(ws, topic, payload);
+      handleRequest(ws, joinRef, topic, payload);
       return;
     }
 
@@ -90,7 +90,7 @@ function connect() {
   });
 }
 
-function handleRequest(ws, topic, payload) {
+function handleRequest(ws, joinRef, topic, payload) {
   const { request_id, method, path, query_string, headers, body } = payload;
   const fullPath = query_string ? `${path}?${query_string}` : path;
 
@@ -102,8 +102,9 @@ function handleRequest(ws, topic, payload) {
   const reqHeaders = {};
   if (headers) {
     for (const [k, v] of headers) {
-      // Skip host header — we're proxying to localhost
-      if (k.toLowerCase() !== "host") {
+      // Skip host header (proxying to localhost) and accept-encoding
+      // (compressed responses corrupt during string conversion)
+      if (k.toLowerCase() !== "host" && k.toLowerCase() !== "accept-encoding") {
         reqHeaders[k] = v;
       }
     }
@@ -141,7 +142,7 @@ function handleRequest(ws, topic, payload) {
 
       ws.send(
         JSON.stringify([
-          null,
+          joinRef,
           nextRef(),
           topic,
           "http_response",
@@ -162,7 +163,7 @@ function handleRequest(ws, topic, payload) {
     );
     ws.send(
       JSON.stringify([
-        null,
+        joinRef,
         nextRef(),
         topic,
         "http_response",
