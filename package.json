@@ -1,7 +1,7 @@
 {
   "name": "runlocal",
   "version": "0.6.0",
-  "description": "Expose localhost to the internet via runlocal.eu",
+  "description": "Expose localhost to the internet — open source tunnel server",
   "bin": {
     "runlocal": "./index.js"
   },

@@ -31,7 +31,7 @@ function parseArgs(argv) {
   let apiKey = process.env.RUNLATER_API_KEY || readApiKeyFile();
   let subdomain = null;
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === "--host" && argv[i + 1]) {
+    if ((argv[i] === "--server" || argv[i] === "--host") && argv[i + 1]) {
       host = argv[++i];
     } else if (argv[i] === "--api-key" && argv[i + 1]) {
       apiKey = argv[++i];
@@ -40,26 +40,27 @@ function parseArgs(argv) {
     } else if (argv[i] === "--help" || argv[i] === "-h") {
       console.log("Usage: runlocal <port> [options]");
       console.log("");
-      console.log("  Expose localhost to the internet via runlocal.eu");
+      console.log("  Expose localhost to the internet. Works with runlocal.eu");
+      console.log("  or any self-hosted runlocal server.");
       console.log("");
       console.log("Options:");
-      console.log("  --host <url>        Server URL (default: wss://runlocal.eu)");
+      console.log("  --server <url>      Server URL (default: wss://runlocal.eu)");
       console.log("  --api-key <key>     Runlater API key for stable subdomain");
-      console.log("  --subdomain <name>  Custom subdomain (Pro plan only)");
+      console.log("  --subdomain <name>  Request a specific subdomain");
       console.log("  --help, -h          Show this help");
       console.log("");
-      console.log("API key (checked in order):");
-      console.log("  1. --api-key flag");
-      console.log("  2. RUNLATER_API_KEY environment variable");
-      console.log("  3. ~/.runlater/api-key file");
+      console.log("Environment variables:");
+      console.log("  RUNLOCAL_HOST       Server URL (same as --server)");
+      console.log("  RUNLATER_API_KEY    API key (same as --api-key)");
       console.log("");
       console.log("Examples:");
       console.log("  npx runlocal 3000                              Random subdomain");
       console.log("  npx runlocal 3000 --api-key pk_xxx             Stable subdomain");
-      console.log("  npx runlocal 3000 --subdomain my-api           Custom subdomain (Pro)");
+      console.log("  npx runlocal 3000 --subdomain my-api           Custom subdomain");
+      console.log("  npx runlocal 3000 --server wss://tunnel.example.com  Self-hosted");
       console.log("");
-      console.log("A free runlater.eu account gives you a stable subdomain.");
-      console.log("Pro users can choose any available subdomain with --subdomain.");
+      console.log("Self-hosting: https://github.com/runlater-eu/runlocal");
+      console.log("Hosted version: https://runlocal.eu");
       process.exit(0);
     } else if (!argv[i].startsWith("-")) {
       port = parseInt(argv[i], 10);
