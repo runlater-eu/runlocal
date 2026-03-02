@@ -5,7 +5,10 @@
   "bin": {
     "runlocal": "./index.js"
   },
-  "files": ["index.js"],
+  "files": ["index.js", "lib.js"],
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
   "keywords": ["tunnel", "localhost", "ngrok", "dev", "https"],
   "license": "MIT",
   "dependencies": {
