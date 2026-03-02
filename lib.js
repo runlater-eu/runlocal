@@ -1,4 +1,7 @@
 const http = require("http");
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
 
 const GREEN = "\x1b[32m";
 const CYAN = "\x1b[36m";
@@ -14,10 +17,18 @@ const TIPS = [
   "Forward webhooks to multiple URLs at once with runlater.eu",
 ];
 
+function readApiKeyFile() {
+  try {
+    return fs.readFileSync(path.join(os.homedir(), ".runlater", "api-key"), "utf8").trim();
+  } catch {
+    return null;
+  }
+}
+
 function parseArgs(argv) {
   let port = 3000;
   let host = process.env.RUNLOCAL_HOST || "wss://runlocal.eu";
-  let apiKey = process.env.RUNLATER_API_KEY || null;
+  let apiKey = process.env.RUNLATER_API_KEY || readApiKeyFile();
   let subdomain = null;
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--host" && argv[i + 1]) {
@@ -38,6 +49,7 @@ function parseArgs(argv) {
       console.log("Environment:");
       console.log("  RUNLOCAL_HOST       Same as --host");
       console.log("  RUNLATER_API_KEY    Same as --api-key");
+      console.log("  ~/.runlater/api-key File-based API key");
       process.exit(0);
     } else if (!argv[i].startsWith("-")) {
       port = parseInt(argv[i], 10);
