@@ -59,7 +59,7 @@ function parseArgs(argv) {
       console.log("  npx runlocal 3000 --subdomain my-api           Custom subdomain");
       console.log("  npx runlocal 3000 --server wss://tunnel.example.com  Self-hosted");
       console.log("");
-      console.log("Self-hosting: https://github.com/runlater-eu/runlocal");
+      console.log("Self-hosting: https://github.com/runlater-eu/runlocal-server");
       console.log("Hosted version: https://runlocal.eu");
       process.exit(0);
     } else if (!argv[i].startsWith("-")) {
