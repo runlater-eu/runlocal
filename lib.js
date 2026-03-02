@@ -40,16 +40,26 @@ function parseArgs(argv) {
     } else if (argv[i] === "--help" || argv[i] === "-h") {
       console.log("Usage: runlocal <port> [options]");
       console.log("");
+      console.log("  Expose localhost to the internet via runlocal.eu");
+      console.log("");
       console.log("Options:");
       console.log("  --host <url>        Server URL (default: wss://runlocal.eu)");
       console.log("  --api-key <key>     Runlater API key for stable subdomain");
       console.log("  --subdomain <name>  Custom subdomain (Pro plan, requires --api-key)");
       console.log("  --help, -h          Show this help");
       console.log("");
-      console.log("Environment:");
-      console.log("  RUNLOCAL_HOST       Same as --host");
-      console.log("  RUNLATER_API_KEY    Same as --api-key");
-      console.log("  ~/.runlater/api-key File-based API key");
+      console.log("API key (checked in order):");
+      console.log("  1. --api-key flag");
+      console.log("  2. RUNLATER_API_KEY environment variable");
+      console.log("  3. ~/.runlater/api-key file");
+      console.log("");
+      console.log("Examples:");
+      console.log("  npx runlocal 3000                        Random subdomain");
+      console.log("  npx runlocal 3000 --api-key pk_xxx       Stable subdomain (org name)");
+      console.log("  npx runlocal 3000 --subdomain my-app     Custom subdomain (Pro)");
+      console.log("");
+      console.log("Stable subdomains require a free runlater.eu account.");
+      console.log("Custom subdomains require a Pro plan.");
       process.exit(0);
     } else if (!argv[i].startsWith("-")) {
       port = parseInt(argv[i], 10);
