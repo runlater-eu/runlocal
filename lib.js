@@ -8,29 +8,48 @@ const RESET = "\x1b[0m";
 const RED = "\x1b[31m";
 const YELLOW = "\x1b[33m";
 
+const TIPS = [
+  "Want a stable URL that never changes? Sign up at runlater.eu",
+  "Need request inspection & replay? Use with runlater.eu",
+  "Forward webhooks to multiple URLs at once with runlater.eu",
+];
+
 function parseArgs(argv) {
   let port = 3000;
   let host = process.env.RUNLOCAL_HOST || "wss://runlocal.eu";
+  let apiKey = process.env.RUNLATER_API_KEY || null;
+  let subdomain = null;
+  let forwardFrom = null;
 
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--host" && argv[i + 1]) {
       host = argv[++i];
+    } else if (argv[i] === "--api-key" && argv[i + 1]) {
+      apiKey = argv[++i];
+    } else if (argv[i] === "--subdomain" && argv[i + 1]) {
+      subdomain = argv[++i];
+    } else if (argv[i] === "--forward-from" && argv[i + 1]) {
+      forwardFrom = argv[++i];
     } else if (argv[i] === "--help" || argv[i] === "-h") {
-      console.log("Usage: runlocal <port> [--host wss://your-server.com]");
+      console.log("Usage: runlocal <port> [options]");
       console.log("");
       console.log("Options:");
-      console.log("  --host <url>  Server URL (default: wss://runlocal.eu)");
-      console.log("  --help, -h    Show this help");
+      console.log("  --host <url>        Server URL (default: wss://runlocal.eu)");
+      console.log("  --api-key <key>     Runlater API key for stable subdomain");
+      console.log("  --subdomain <name>  Custom subdomain (Pro plan, requires --api-key)");
+      console.log("  --forward-from <id> Auto-update runlater endpoint forward URL");
+      console.log("  --help, -h          Show this help");
       console.log("");
       console.log("Environment:");
-      console.log("  RUNLOCAL_HOST  Same as --host");
+      console.log("  RUNLOCAL_HOST       Same as --host");
+      console.log("  RUNLATER_API_KEY    Same as --api-key");
       process.exit(0);
     } else if (!argv[i].startsWith("-")) {
       port = parseInt(argv[i], 10);
     }
   }
 
-  return { port, host };
+  return { port, host, apiKey, subdomain, forwardFrom };
 }
 
 function filterHeaders(headers) {
@@ -45,8 +64,51 @@ function filterHeaders(headers) {
   return filtered;
 }
 
-function buildWsUrl(host) {
-  return `${host}/tunnel/websocket?vsn=2.0.0`;
+function buildWsUrl(host, apiKey, subdomain) {
+  const params = new URLSearchParams({ vsn: "2.0.0" });
+  if (apiKey) params.set("api_key", apiKey);
+  if (subdomain) params.set("subdomain", subdomain);
+  return `${host}/tunnel/websocket?${params.toString()}`;
+}
+
+function updateForwardUrl(host, apiKey, forwardFrom, tunnelUrl, log) {
+  const apiHost = host.replace(/^wss:/, "https:").replace(/^ws:/, "http:");
+  const url = `${apiHost.replace("runlocal.", "runlater.")}/api/v1/endpoints/${forwardFrom}`;
+
+  const body = JSON.stringify({ forward_urls: [tunnelUrl] });
+  const parsed = new URL(url);
+
+  const reqModule = parsed.protocol === "https:" ? require("https") : http;
+  const req = reqModule.request(
+    {
+      hostname: parsed.hostname,
+      port: parsed.port,
+      path: parsed.pathname,
+      method: "PUT",
+      headers: {
+        authorization: `Bearer ${apiKey}`,
+        "content-type": "application/json",
+        "content-length": Buffer.byteLength(body),
+      },
+    },
+    (res) => {
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        log(
+          `  ${DIM}Runlater endpoint ${forwardFrom} now forwards here${RESET}`
+        );
+      } else {
+        log(
+          `  ${YELLOW}Could not update runlater endpoint (HTTP ${res.statusCode})${RESET}`
+        );
+      }
+      res.resume();
+    }
+  );
+  req.on("error", (err) => {
+    log(`  ${YELLOW}Could not update runlater endpoint: ${err.message}${RESET}`);
+  });
+  req.write(body);
+  req.end();
 }
 
 function handleRequest(ws, joinRef, topic, payload, port, nextRef, log) {
@@ -137,13 +199,16 @@ function createConnection(options) {
   const {
     host,
     port,
+    apiKey,
+    subdomain,
+    forwardFrom,
     WebSocket,
     onTunnelCreated,
     onClose,
     log = console.log,
     logError = console.error,
   } = options;
-  const wsUrl = buildWsUrl(host);
+  const wsUrl = buildWsUrl(host, apiKey, subdomain);
 
   let refCounter = 0;
   const nextRef = () => String(++refCounter);
@@ -174,7 +239,16 @@ function createConnection(options) {
       if (payload.status === "ok") {
         // Join succeeded, wait for tunnel_created push
       } else {
-        logError(`${RED}Failed to join: ${JSON.stringify(payload)}${RESET}`);
+        const reason = payload.response && payload.response.reason;
+        if (reason === "invalid_api_key") {
+          logError(`${RED}Invalid API key. Check your --api-key or RUNLATER_API_KEY${RESET}`);
+        } else if (reason === "verification_failed") {
+          logError(`${RED}Subdomain verification failed${RESET}`);
+        } else if (reason === "verification_unavailable") {
+          logError(`${RED}Could not reach runlater.eu to verify API key${RESET}`);
+        } else {
+          logError(`${RED}Failed to join: ${JSON.stringify(payload)}${RESET}`);
+        }
       }
       return;
     }
@@ -183,9 +257,26 @@ function createConnection(options) {
       log("");
       log(`  ${GREEN}${BOLD}Tunnel created!${RESET}`);
       log(`  ${CYAN}${BOLD}${payload.url}${RESET}`);
+
+      if (payload.fallback) {
+        log(`  ${YELLOW}${payload.requested_subdomain} is already in use. Using random subdomain.${RESET}`);
+      }
+
       log("");
       log(`  ${DIM}Forwarding to localhost:${port}${RESET}`);
       log(`  ${DIM}Press Ctrl+C to stop${RESET}`);
+
+      // Update runlater endpoint if --forward-from is set
+      if (forwardFrom && apiKey) {
+        updateForwardUrl(host, apiKey, forwardFrom, payload.url, log);
+      }
+
+      // Show tip for users without an API key
+      if (!apiKey) {
+        log("");
+        log(`  ${DIM}Tip: ${TIPS[Math.floor(Math.random() * TIPS.length)]}${RESET}`);
+      }
+
       log("");
       if (onTunnelCreated) onTunnelCreated(payload);
       return;
