@@ -29,11 +29,14 @@ function parseArgs(argv) {
   let port = 3000;
   let host = process.env.RUNLOCAL_HOST || "wss://runlocal.eu";
   let apiKey = process.env.RUNLATER_API_KEY || readApiKeyFile();
+  let subdomain = null;
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--host" && argv[i + 1]) {
       host = argv[++i];
     } else if (argv[i] === "--api-key" && argv[i + 1]) {
       apiKey = argv[++i];
+    } else if (argv[i] === "--subdomain" && argv[i + 1]) {
+      subdomain = argv[++i];
     } else if (argv[i] === "--help" || argv[i] === "-h") {
       console.log("Usage: runlocal <port> [options]");
       console.log("");
@@ -42,6 +45,7 @@ function parseArgs(argv) {
       console.log("Options:");
       console.log("  --host <url>        Server URL (default: wss://runlocal.eu)");
       console.log("  --api-key <key>     Runlater API key for stable subdomain");
+      console.log("  --subdomain <name>  Custom subdomain (Pro plan only)");
       console.log("  --help, -h          Show this help");
       console.log("");
       console.log("API key (checked in order):");
@@ -50,17 +54,19 @@ function parseArgs(argv) {
       console.log("  3. ~/.runlater/api-key file");
       console.log("");
       console.log("Examples:");
-      console.log("  npx runlocal 3000                        Random subdomain");
-      console.log("  npx runlocal 3000 --api-key pk_xxx       Stable subdomain");
+      console.log("  npx runlocal 3000                              Random subdomain");
+      console.log("  npx runlocal 3000 --api-key pk_xxx             Stable subdomain");
+      console.log("  npx runlocal 3000 --subdomain my-api           Custom subdomain (Pro)");
       console.log("");
       console.log("A free runlater.eu account gives you a stable subdomain.");
+      console.log("Pro users can choose any available subdomain with --subdomain.");
       process.exit(0);
     } else if (!argv[i].startsWith("-")) {
       port = parseInt(argv[i], 10);
     }
   }
 
-  return { port, host, apiKey };
+  return { port, host, apiKey, subdomain };
 }
 
 function filterHeaders(headers) {
@@ -75,9 +81,10 @@ function filterHeaders(headers) {
   return filtered;
 }
 
-function buildWsUrl(host, apiKey) {
+function buildWsUrl(host, apiKey, subdomain) {
   const params = new URLSearchParams({ vsn: "2.0.0" });
   if (apiKey) params.set("api_key", apiKey);
+  if (subdomain) params.set("subdomain", subdomain);
   return `${host}/tunnel/websocket?${params.toString()}`;
 }
 
@@ -170,13 +177,14 @@ function createConnection(options) {
     host,
     port,
     apiKey,
+    subdomain,
     WebSocket,
     onTunnelCreated,
     onClose,
     log = console.log,
     logError = console.error,
   } = options;
-  const wsUrl = buildWsUrl(host, apiKey);
+  const wsUrl = buildWsUrl(host, apiKey, subdomain);
 
   let refCounter = 0;
   const nextRef = () => String(++refCounter);

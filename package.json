@@ -1,15 +1,24 @@
 {
   "name": "runlocal",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Expose localhost to the internet via runlocal.eu",
   "bin": {
     "runlocal": "./index.js"
   },
-  "files": ["index.js", "lib.js"],
+  "files": [
+    "index.js",
+    "lib.js"
+  ],
   "scripts": {
     "test": "node --test test/*.test.js"
   },
-  "keywords": ["tunnel", "localhost", "ngrok", "dev", "https"],
+  "keywords": [
+    "tunnel",
+    "localhost",
+    "ngrok",
+    "dev",
+    "https"
+  ],
   "license": "MIT",
   "dependencies": {
     "ws": "^8.0.0"
