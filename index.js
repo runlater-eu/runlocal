@@ -3,8 +3,30 @@
 const WebSocket = require("ws");
 const http = require("http");
 
-const PORT = parseInt(process.argv[2] || "3000", 10);
-const HOST = process.env.RUNLOCAL_HOST || "wss://runlocal.eu";
+const args = process.argv.slice(2);
+let port = 3000;
+let host = process.env.RUNLOCAL_HOST || "wss://runlocal.eu";
+
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === "--host" && args[i + 1]) {
+    host = args[++i];
+  } else if (args[i] === "--help" || args[i] === "-h") {
+    console.log("Usage: runlocal <port> [--host wss://your-server.com]");
+    console.log("");
+    console.log("Options:");
+    console.log("  --host <url>  Server URL (default: wss://runlocal.eu)");
+    console.log("  --help, -h    Show this help");
+    console.log("");
+    console.log("Environment:");
+    console.log("  RUNLOCAL_HOST  Same as --host");
+    process.exit(0);
+  } else if (!args[i].startsWith("-")) {
+    port = parseInt(args[i], 10);
+  }
+}
+
+const PORT = port;
+const HOST = host;
 const WS_URL = `${HOST}/tunnel/websocket?vsn=2.0.0`;
 
 const GREEN = "\x1b[32m";
@@ -24,7 +46,8 @@ function connect() {
   let joinRef = null;
 
   ws.on("open", () => {
-    console.log(`${DIM}Connecting to runlocal.eu...${RESET}`);
+    const displayHost = HOST.replace(/^wss?:\/\//, "");
+    console.log(`${DIM}Connecting to ${displayHost}...${RESET}`);
     joinRef = nextRef();
     // Phoenix Channel join message: [join_ref, ref, topic, event, payload]
     ws.send(JSON.stringify([joinRef, joinRef, "tunnel:connect", "phx_join", {}]));
@@ -81,8 +104,9 @@ function connect() {
 
   ws.on("error", (err) => {
     if (err.code === "ECONNREFUSED") {
+      const displayHost = HOST.replace(/^wss?:\/\//, "");
       console.error(
-        `${RED}Could not connect to runlocal.eu${RESET}`
+        `${RED}Could not connect to ${displayHost}${RESET}`
       );
     } else {
       console.error(`${RED}WebSocket error: ${err.message}${RESET}`);
