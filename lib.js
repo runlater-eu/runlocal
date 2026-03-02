@@ -222,6 +222,17 @@ function createConnection(options) {
     }
 
     if (event === "tunnel_created") {
+      const inspectUrl = payload.url.replace(/^https?:\/\/[^/]+/, (origin) => {
+        // Convert subdomain URL to main domain /inspect/ URL
+        // e.g., https://fuzzy-tiger.runlocal.eu → https://runlocal.eu/inspect/fuzzy-tiger
+        const parts = new URL(origin);
+        const hostParts = parts.hostname.split(".");
+        if (hostParts.length > 2) {
+          parts.hostname = hostParts.slice(1).join(".");
+        }
+        return `${parts.origin}/inspect/${payload.subdomain}`;
+      });
+
       log("");
       log(`  ${GREEN}${BOLD}Tunnel created!${RESET}`);
       log(`  ${CYAN}${BOLD}${payload.url}${RESET}`);
@@ -232,6 +243,7 @@ function createConnection(options) {
 
       log("");
       log(`  ${DIM}Forwarding to localhost:${port}${RESET}`);
+      log(`  ${DIM}Inspect requests at ${RESET}${CYAN}${inspectUrl}${RESET}`);
       log(`  ${DIM}Press Ctrl+C to stop${RESET}`);
 
       // Show tip for users without an API key

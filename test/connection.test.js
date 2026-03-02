@@ -71,13 +71,13 @@ describe("createConnection", () => {
 
     mockWs.emit("open");
     mockWs.emit("message", Buffer.from(JSON.stringify([
-      "1", "1", "tunnel:connect", "tunnel_created", { url: "https://abc.runlocal.eu" }
+      "1", "1", "tunnel:connect", "tunnel_created", { url: "https://abc.runlocal.eu", subdomain: "abc" }
     ])));
 
-    assert.deepEqual(tunnelPayload, { url: "https://abc.runlocal.eu" });
+    assert.deepEqual(tunnelPayload, { url: "https://abc.runlocal.eu", subdomain: "abc" });
   });
 
-  it("logs tunnel URL on tunnel_created", () => {
+  it("logs tunnel URL and inspect URL on tunnel_created", () => {
     createConnection({
       host: "wss://test.com",
       port: 3000,
@@ -88,11 +88,12 @@ describe("createConnection", () => {
 
     mockWs.emit("open");
     mockWs.emit("message", Buffer.from(JSON.stringify([
-      "1", "1", "tunnel:connect", "tunnel_created", { url: "https://abc.runlocal.eu" }
+      "1", "1", "tunnel:connect", "tunnel_created", { url: "https://abc.runlocal.eu", subdomain: "abc" }
     ])));
 
     assert.ok(log.messages.some((m) => m.includes("Tunnel created")));
     assert.ok(log.messages.some((m) => m.includes("https://abc.runlocal.eu")));
+    assert.ok(log.messages.some((m) => m.includes("/inspect/abc")));
   });
 
   it("handles phx_reply success", () => {
