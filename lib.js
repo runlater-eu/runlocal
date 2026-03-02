@@ -224,13 +224,13 @@ function createConnection(options) {
     if (event === "tunnel_created") {
       const inspectUrl = payload.url.replace(/^https?:\/\/[^/]+/, (origin) => {
         // Convert subdomain URL to main domain /inspect/ URL
-        // e.g., https://fuzzy-tiger.runlocal.eu → https://runlocal.eu/inspect/fuzzy-tiger
+        // e.g., https://fuzzy-tiger.runlocal.eu → https://runlocal.eu/inspect/fuzzy-tiger/<token>
         const parts = new URL(origin);
         const hostParts = parts.hostname.split(".");
         if (hostParts.length > 2) {
           parts.hostname = hostParts.slice(1).join(".");
         }
-        return `${parts.origin}/inspect/${payload.subdomain}`;
+        return `${parts.origin}/inspect/${payload.subdomain}/${payload.inspect_token}`;
       });
 
       log("");

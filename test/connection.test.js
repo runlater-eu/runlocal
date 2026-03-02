@@ -71,13 +71,13 @@ describe("createConnection", () => {
 
     mockWs.emit("open");
     mockWs.emit("message", Buffer.from(JSON.stringify([
-      "1", "1", "tunnel:connect", "tunnel_created", { url: "https://abc.runlocal.eu", subdomain: "abc" }
+      "1", "1", "tunnel:connect", "tunnel_created", { url: "https://abc.runlocal.eu", subdomain: "abc", inspect_token: "tok123" }
     ])));
 
-    assert.deepEqual(tunnelPayload, { url: "https://abc.runlocal.eu", subdomain: "abc" });
+    assert.deepEqual(tunnelPayload, { url: "https://abc.runlocal.eu", subdomain: "abc", inspect_token: "tok123" });
   });
 
-  it("logs tunnel URL and inspect URL on tunnel_created", () => {
+  it("logs tunnel URL and inspect URL with token on tunnel_created", () => {
     createConnection({
       host: "wss://test.com",
       port: 3000,
@@ -88,12 +88,12 @@ describe("createConnection", () => {
 
     mockWs.emit("open");
     mockWs.emit("message", Buffer.from(JSON.stringify([
-      "1", "1", "tunnel:connect", "tunnel_created", { url: "https://abc.runlocal.eu", subdomain: "abc" }
+      "1", "1", "tunnel:connect", "tunnel_created", { url: "https://abc.runlocal.eu", subdomain: "abc", inspect_token: "tok123" }
     ])));
 
     assert.ok(log.messages.some((m) => m.includes("Tunnel created")));
     assert.ok(log.messages.some((m) => m.includes("https://abc.runlocal.eu")));
-    assert.ok(log.messages.some((m) => m.includes("/inspect/abc")));
+    assert.ok(log.messages.some((m) => m.includes("/inspect/abc/tok123")));
   });
 
   it("handles phx_reply success", () => {
