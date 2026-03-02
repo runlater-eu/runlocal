@@ -19,8 +19,6 @@ function parseArgs(argv) {
   let host = process.env.RUNLOCAL_HOST || "wss://runlocal.eu";
   let apiKey = process.env.RUNLATER_API_KEY || null;
   let subdomain = null;
-  let forwardFrom = null;
-
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--host" && argv[i + 1]) {
       host = argv[++i];
@@ -28,8 +26,6 @@ function parseArgs(argv) {
       apiKey = argv[++i];
     } else if (argv[i] === "--subdomain" && argv[i + 1]) {
       subdomain = argv[++i];
-    } else if (argv[i] === "--forward-from" && argv[i + 1]) {
-      forwardFrom = argv[++i];
     } else if (argv[i] === "--help" || argv[i] === "-h") {
       console.log("Usage: runlocal <port> [options]");
       console.log("");
@@ -37,7 +33,6 @@ function parseArgs(argv) {
       console.log("  --host <url>        Server URL (default: wss://runlocal.eu)");
       console.log("  --api-key <key>     Runlater API key for stable subdomain");
       console.log("  --subdomain <name>  Custom subdomain (Pro plan, requires --api-key)");
-      console.log("  --forward-from <id> Auto-update runlater endpoint forward URL");
       console.log("  --help, -h          Show this help");
       console.log("");
       console.log("Environment:");
@@ -49,7 +44,7 @@ function parseArgs(argv) {
     }
   }
 
-  return { port, host, apiKey, subdomain, forwardFrom };
+  return { port, host, apiKey, subdomain };
 }
 
 function filterHeaders(headers) {
@@ -69,46 +64,6 @@ function buildWsUrl(host, apiKey, subdomain) {
   if (apiKey) params.set("api_key", apiKey);
   if (subdomain) params.set("subdomain", subdomain);
   return `${host}/tunnel/websocket?${params.toString()}`;
-}
-
-function updateForwardUrl(host, apiKey, forwardFrom, tunnelUrl, log) {
-  const apiHost = host.replace(/^wss:/, "https:").replace(/^ws:/, "http:");
-  const url = `${apiHost.replace("runlocal.", "runlater.")}/api/v1/endpoints/${forwardFrom}`;
-
-  const body = JSON.stringify({ forward_urls: [tunnelUrl] });
-  const parsed = new URL(url);
-
-  const reqModule = parsed.protocol === "https:" ? require("https") : http;
-  const req = reqModule.request(
-    {
-      hostname: parsed.hostname,
-      port: parsed.port,
-      path: parsed.pathname,
-      method: "PUT",
-      headers: {
-        authorization: `Bearer ${apiKey}`,
-        "content-type": "application/json",
-        "content-length": Buffer.byteLength(body),
-      },
-    },
-    (res) => {
-      if (res.statusCode >= 200 && res.statusCode < 300) {
-        log(
-          `  ${DIM}Runlater endpoint ${forwardFrom} now forwards here${RESET}`
-        );
-      } else {
-        log(
-          `  ${YELLOW}Could not update runlater endpoint (HTTP ${res.statusCode})${RESET}`
-        );
-      }
-      res.resume();
-    }
-  );
-  req.on("error", (err) => {
-    log(`  ${YELLOW}Could not update runlater endpoint: ${err.message}${RESET}`);
-  });
-  req.write(body);
-  req.end();
 }
 
 function handleRequest(ws, joinRef, topic, payload, port, nextRef, log) {
@@ -201,7 +156,6 @@ function createConnection(options) {
     port,
     apiKey,
     subdomain,
-    forwardFrom,
     WebSocket,
     onTunnelCreated,
     onClose,
@@ -265,11 +219,6 @@ function createConnection(options) {
       log("");
       log(`  ${DIM}Forwarding to localhost:${port}${RESET}`);
       log(`  ${DIM}Press Ctrl+C to stop${RESET}`);
-
-      // Update runlater endpoint if --forward-from is set
-      if (forwardFrom && apiKey) {
-        updateForwardUrl(host, apiKey, forwardFrom, payload.url, log);
-      }
 
       // Show tip for users without an API key
       if (!apiKey) {
