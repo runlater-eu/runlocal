@@ -193,6 +193,7 @@ function createConnection(options) {
   const ws = new WebSocket(wsUrl);
   let heartbeatTimer = null;
   let joinRef = null;
+  const activeWsConnections = new Map();
 
   ws.on("open", () => {
     const displayHost = host.replace(/^wss?:\/\//, "");
@@ -271,6 +272,21 @@ function createConnection(options) {
       return;
     }
 
+    if (event === "ws_upgrade") {
+      handleWsUpgrade(ws, joinRef, topic, payload, port, nextRef, log, activeWsConnections, WebSocket);
+      return;
+    }
+
+    if (event === "ws_client_frame") {
+      handleWsClientFrame(payload, activeWsConnections);
+      return;
+    }
+
+    if (event === "ws_close") {
+      handleWsClose(payload, activeWsConnections);
+      return;
+    }
+
     if (event === "phx_close") {
       log(`${YELLOW}Tunnel closed by server${RESET}`);
       if (onClose) {
@@ -283,6 +299,10 @@ function createConnection(options) {
 
   ws.on("close", () => {
     clearInterval(heartbeatTimer);
+    for (const [, localWs] of activeWsConnections) {
+      try { localWs.close(); } catch {}
+    }
+    activeWsConnections.clear();
     log(`${YELLOW}Disconnected. Reconnecting in 3s...${RESET}`);
     const reconnectTimer = setTimeout(() => createConnection(options), 3000);
     reconnectTimer.unref();
@@ -300,6 +320,85 @@ function createConnection(options) {
   });
 
   return { ws, getJoinRef: () => joinRef, nextRef };
+}
+
+function handleWsUpgrade(ws, joinRef, topic, payload, port, nextRef, log, activeWsConnections, WebSocket) {
+  const { ws_id, path: wsPath, query_string, headers } = payload;
+  const fullPath = query_string ? `${wsPath}?${query_string}` : wsPath;
+  const timestamp = new Date().toLocaleTimeString();
+
+  log(`${DIM}${timestamp}${RESET}  ${BOLD}WS${RESET} ${fullPath}`);
+
+  const localWsUrl = `ws://127.0.0.1:${port}${fullPath}`;
+
+  const reqHeaders = {};
+  if (headers) {
+    for (const [k, v] of headers) {
+      const lower = k.toLowerCase();
+      if (lower !== "host" && lower !== "upgrade" && lower !== "connection" &&
+          lower !== "sec-websocket-key" && lower !== "sec-websocket-version" &&
+          lower !== "sec-websocket-extensions") {
+        reqHeaders[k] = v;
+      }
+    }
+  }
+
+  let localWs;
+  try {
+    localWs = new WebSocket(localWsUrl, { headers: reqHeaders });
+  } catch (err) {
+    log(`${DIM}${timestamp}${RESET}  ${RED}WS ERR${RESET} ${fullPath} — ${err.message}`);
+    ws.send(JSON.stringify([joinRef, nextRef(), topic, "ws_close", { ws_id }]));
+    return;
+  }
+
+  activeWsConnections.set(ws_id, localWs);
+
+  localWs.on("message", (data, isBinary) => {
+    const opcode = isBinary ? "binary" : "text";
+    const frameData = isBinary ? Buffer.from(data).toString("base64") : data.toString();
+
+    ws.send(JSON.stringify([
+      joinRef,
+      nextRef(),
+      topic,
+      "ws_frame",
+      { ws_id, data: frameData, opcode },
+    ]));
+  });
+
+  localWs.on("close", () => {
+    activeWsConnections.delete(ws_id);
+    log(`${DIM}${timestamp}${RESET}  ${DIM}WS closed${RESET} ${fullPath}`);
+    ws.send(JSON.stringify([joinRef, nextRef(), topic, "ws_close", { ws_id }]));
+  });
+
+  localWs.on("error", (err) => {
+    log(`${DIM}${timestamp}${RESET}  ${RED}WS ERR${RESET} ${fullPath} — ${err.message}`);
+    activeWsConnections.delete(ws_id);
+    ws.send(JSON.stringify([joinRef, nextRef(), topic, "ws_close", { ws_id }]));
+  });
+}
+
+function handleWsClientFrame(payload, activeWsConnections) {
+  const { ws_id, data, opcode } = payload;
+  const localWs = activeWsConnections.get(ws_id);
+  if (!localWs || localWs.readyState !== 1) return;
+
+  if (opcode === "binary") {
+    localWs.send(Buffer.from(data, "base64"));
+  } else {
+    localWs.send(data);
+  }
+}
+
+function handleWsClose(payload, activeWsConnections) {
+  const { ws_id } = payload;
+  const localWs = activeWsConnections.get(ws_id);
+  if (localWs) {
+    activeWsConnections.delete(ws_id);
+    try { localWs.close(); } catch {}
+  }
 }
 
 module.exports = {
