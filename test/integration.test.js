@@ -89,7 +89,7 @@ describe("integration: full proxy round-trip", () => {
     let tunnelCreated = false;
     conn = createConnection({
       host: `ws://127.0.0.1:${wsPort}`,
-      port: localPort,
+      target: { hostname: "127.0.0.1", port: localPort, protocol: "http:", display: `localhost:${localPort}` },
       WebSocket,
       onTunnelCreated: () => { tunnelCreated = true; },
       onClose: noop,
@@ -161,7 +161,7 @@ describe("integration: full proxy round-trip", () => {
 
     conn = createConnection({
       host: `ws://127.0.0.1:${wsPort}`,
-      port: 19998,
+      target: { hostname: "127.0.0.1", port: 19998, protocol: "http:", display: "localhost:19998" },
       WebSocket,
       onTunnelCreated: noop,
       onClose: noop,

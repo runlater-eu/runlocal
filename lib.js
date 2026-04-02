@@ -1,4 +1,5 @@
 const http = require("http");
+const https = require("https");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
@@ -25,8 +26,27 @@ function readApiKeyFile() {
   }
 }
 
+function parseTarget(value) {
+  if (/^https?:\/\//.test(value)) {
+    const url = new URL(value);
+    return {
+      hostname: url.hostname,
+      port: url.port ? parseInt(url.port, 10) : (url.protocol === "https:" ? 443 : 80),
+      protocol: url.protocol,
+      display: value.replace(/\/$/, ""),
+    };
+  }
+  const port = parseInt(value, 10);
+  return {
+    hostname: "127.0.0.1",
+    port,
+    protocol: "http:",
+    display: `localhost:${port}`,
+  };
+}
+
 function parseArgs(argv) {
-  let port = 3000;
+  let target = parseTarget("3000");
   let host = process.env.RUNLOCAL_HOST || "wss://runlocal.eu";
   let apiKey = process.env.RUNLATER_API_KEY || readApiKeyFile();
   let subdomain = null;
@@ -38,9 +58,9 @@ function parseArgs(argv) {
     } else if (argv[i] === "--subdomain" && argv[i + 1]) {
       subdomain = argv[++i];
     } else if (argv[i] === "--help" || argv[i] === "-h") {
-      console.log("Usage: runlocal <port> [options]");
+      console.log("Usage: runlocal <port|url> [options]");
       console.log("");
-      console.log("  Expose localhost to the internet. Works with runlocal.eu");
+      console.log("  Expose a local server to the internet. Works with runlocal.eu");
       console.log("  or any self-hosted runlocal server.");
       console.log("");
       console.log("Options:");
@@ -55,6 +75,8 @@ function parseArgs(argv) {
       console.log("");
       console.log("Examples:");
       console.log("  npx runlocal 3000                              Random subdomain");
+      console.log("  npx runlocal https://10.8.0.1                  Proxy any URL");
+      console.log("  npx runlocal http://myapp.local:8080           Custom host and port");
       console.log("  npx runlocal 3000 --api-key pk_xxx             Stable subdomain");
       console.log("  npx runlocal 3000 --subdomain my-api           Custom subdomain");
       console.log("  npx runlocal 3000 --server wss://tunnel.example.com  Self-hosted");
@@ -63,11 +85,11 @@ function parseArgs(argv) {
       console.log("Hosted version: https://runlocal.eu");
       process.exit(0);
     } else if (!argv[i].startsWith("-")) {
-      port = parseInt(argv[i], 10);
+      target = parseTarget(argv[i]);
     }
   }
 
-  return { port, host, apiKey, subdomain };
+  return { target, host, apiKey, subdomain };
 }
 
 function filterHeaders(headers) {
@@ -89,7 +111,7 @@ function buildWsUrl(host, apiKey, subdomain) {
   return `${host}/tunnel/websocket?${params.toString()}`;
 }
 
-function handleRequest(ws, joinRef, topic, payload, port, nextRef, log) {
+function handleRequest(ws, joinRef, topic, payload, target, nextRef, log) {
   const { request_id, method, path, query_string, headers, body } = payload;
   const fullPath = query_string ? `${path}?${query_string}` : path;
 
@@ -100,15 +122,17 @@ function handleRequest(ws, joinRef, topic, payload, port, nextRef, log) {
 
   const reqHeaders = filterHeaders(headers);
 
+  const requester = target.protocol === "https:" ? https : http;
   const options = {
-    hostname: "127.0.0.1",
-    port: port,
+    hostname: target.hostname,
+    port: target.port,
     path: fullPath,
     method: method,
     headers: reqHeaders,
+    rejectUnauthorized: false,
   };
 
-  const proxyReq = http.request(options, (proxyRes) => {
+  const proxyReq = requester.request(options, (proxyRes) => {
     const chunks = [];
     proxyRes.on("data", (chunk) => chunks.push(chunk));
     proxyRes.on("end", () => {
@@ -161,7 +185,7 @@ function handleRequest(ws, joinRef, topic, payload, port, nextRef, log) {
           request_id,
           status: 502,
           headers: [["content-type", "text/plain"]],
-          body: `Could not connect to localhost:${port} — ${err.message}`,
+          body: `Could not connect to ${target.display} — ${err.message}`,
         },
       ])
     );
@@ -176,7 +200,7 @@ function handleRequest(ws, joinRef, topic, payload, port, nextRef, log) {
 function createConnection(options) {
   const {
     host,
-    port,
+    target,
     apiKey,
     subdomain,
     WebSocket,
@@ -252,7 +276,7 @@ function createConnection(options) {
       }
 
       log("");
-      log(`  ${DIM}Forwarding to localhost:${port}${RESET}`);
+      log(`  ${DIM}Forwarding to ${target.display}${RESET}`);
       log(`  ${DIM}Inspect requests at ${RESET}${CYAN}${inspectUrl}${RESET}`);
       log(`  ${DIM}Press Ctrl+C to stop${RESET}`);
 
@@ -268,12 +292,12 @@ function createConnection(options) {
     }
 
     if (event === "http_request") {
-      handleRequest(ws, joinRef, topic, payload, port, nextRef, log);
+      handleRequest(ws, joinRef, topic, payload, target, nextRef, log);
       return;
     }
 
     if (event === "ws_upgrade") {
-      handleWsUpgrade(ws, joinRef, topic, payload, port, nextRef, log, activeWsConnections, WebSocket);
+      handleWsUpgrade(ws, joinRef, topic, payload, target, nextRef, log, activeWsConnections, WebSocket);
       return;
     }
 
@@ -322,14 +346,15 @@ function createConnection(options) {
   return { ws, getJoinRef: () => joinRef, nextRef };
 }
 
-function handleWsUpgrade(ws, joinRef, topic, payload, port, nextRef, log, activeWsConnections, WebSocket) {
+function handleWsUpgrade(ws, joinRef, topic, payload, target, nextRef, log, activeWsConnections, WebSocket) {
   const { ws_id, path: wsPath, query_string, headers } = payload;
   const fullPath = query_string ? `${wsPath}?${query_string}` : wsPath;
   const timestamp = new Date().toLocaleTimeString();
 
   log(`${DIM}${timestamp}${RESET}  ${BOLD}WS${RESET} ${fullPath}`);
 
-  const localWsUrl = `ws://127.0.0.1:${port}${fullPath}`;
+  const wsProtocol = target.protocol === "https:" ? "wss:" : "ws:";
+  const localWsUrl = `${wsProtocol}//${target.hostname}:${target.port}${fullPath}`;
 
   const reqHeaders = {};
   if (headers) {
@@ -345,7 +370,7 @@ function handleWsUpgrade(ws, joinRef, topic, payload, port, nextRef, log, active
 
   let localWs;
   try {
-    localWs = new WebSocket(localWsUrl, { headers: reqHeaders });
+    localWs = new WebSocket(localWsUrl, { headers: reqHeaders, rejectUnauthorized: false });
   } catch (err) {
     log(`${DIM}${timestamp}${RESET}  ${RED}WS ERR${RESET} ${fullPath} — ${err.message}`);
     ws.send(JSON.stringify([joinRef, nextRef(), topic, "ws_close", { ws_id }]));
@@ -403,6 +428,7 @@ function handleWsClose(payload, activeWsConnections) {
 
 module.exports = {
   parseArgs,
+  parseTarget,
   filterHeaders,
   buildWsUrl,
   handleRequest,

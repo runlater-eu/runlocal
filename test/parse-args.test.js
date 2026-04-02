@@ -1,6 +1,43 @@
 const { describe, it, beforeEach, afterEach } = require("node:test");
 const assert = require("node:assert/strict");
-const { parseArgs, buildWsUrl } = require("../lib");
+const { parseArgs, parseTarget, buildWsUrl } = require("../lib");
+
+describe("parseTarget", () => {
+  it("parses a plain port number", () => {
+    const target = parseTarget("4000");
+    assert.equal(target.hostname, "127.0.0.1");
+    assert.equal(target.port, 4000);
+    assert.equal(target.protocol, "http:");
+    assert.equal(target.display, "localhost:4000");
+  });
+
+  it("parses an http URL", () => {
+    const target = parseTarget("http://10.8.0.1:8080");
+    assert.equal(target.hostname, "10.8.0.1");
+    assert.equal(target.port, 8080);
+    assert.equal(target.protocol, "http:");
+    assert.equal(target.display, "http://10.8.0.1:8080");
+  });
+
+  it("parses an https URL", () => {
+    const target = parseTarget("https://10.8.0.1");
+    assert.equal(target.hostname, "10.8.0.1");
+    assert.equal(target.port, 443);
+    assert.equal(target.protocol, "https:");
+    assert.equal(target.display, "https://10.8.0.1");
+  });
+
+  it("defaults http to port 80", () => {
+    const target = parseTarget("http://myhost.local");
+    assert.equal(target.port, 80);
+    assert.equal(target.protocol, "http:");
+  });
+
+  it("strips trailing slash from display", () => {
+    const target = parseTarget("https://10.8.0.1/");
+    assert.equal(target.display, "https://10.8.0.1");
+  });
+});
 
 describe("parseArgs", () => {
   let originalEnv;
@@ -20,18 +57,26 @@ describe("parseArgs", () => {
 
   it("returns default port 3000 and default host", () => {
     const result = parseArgs([]);
-    assert.equal(result.port, 3000);
+    assert.equal(result.target.port, 3000);
+    assert.equal(result.target.hostname, "127.0.0.1");
     assert.equal(result.host, "wss://runlocal.eu");
   });
 
   it("parses custom port", () => {
     const result = parseArgs(["4000"]);
-    assert.equal(result.port, 4000);
+    assert.equal(result.target.port, 4000);
+  });
+
+  it("parses a full URL as target", () => {
+    const result = parseArgs(["https://10.8.0.1"]);
+    assert.equal(result.target.hostname, "10.8.0.1");
+    assert.equal(result.target.port, 443);
+    assert.equal(result.target.protocol, "https:");
   });
 
   it("parses --host flag", () => {
     const result = parseArgs(["3000", "--host", "wss://custom.com"]);
-    assert.equal(result.port, 3000);
+    assert.equal(result.target.port, 3000);
     assert.equal(result.host, "wss://custom.com");
   });
 

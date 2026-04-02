@@ -12,7 +12,7 @@ function createLog() {
 
 describe("handleRequest", () => {
   let localServer;
-  let localPort;
+  let localTarget;
   let refCounter;
   let log;
   const nextRef = () => String(++refCounter);
@@ -47,7 +47,8 @@ describe("handleRequest", () => {
         });
       });
       localServer.listen(0, "127.0.0.1", () => {
-        localPort = localServer.address().port;
+        const port = localServer.address().port;
+        localTarget = { hostname: "127.0.0.1", port, protocol: "http:", display: `localhost:${port}` };
         resolve();
       });
     });
@@ -68,7 +69,7 @@ describe("handleRequest", () => {
       query_string: "",
       headers: [],
       body: "",
-    }, localPort, nextRef, log);
+    }, localTarget, nextRef, log);
 
     await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -93,7 +94,7 @@ describe("handleRequest", () => {
       query_string: "",
       headers: [["content-type", "application/json"]],
       body: '{"key":"value"}',
-    }, localPort, nextRef, log);
+    }, localTarget, nextRef, log);
 
     await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -116,7 +117,7 @@ describe("handleRequest", () => {
       query_string: "foo=bar&baz=1",
       headers: [],
       body: "",
-    }, localPort, nextRef, log);
+    }, localTarget, nextRef, log);
 
     await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -136,7 +137,7 @@ describe("handleRequest", () => {
       query_string: "",
       headers: [],
       body: "",
-    }, localPort, nextRef, log);
+    }, localTarget, nextRef, log);
 
     await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -150,6 +151,7 @@ describe("handleRequest", () => {
     const sent = [];
     const mockWs = { send: (data) => sent.push(JSON.parse(data)) };
 
+    const badTarget = { hostname: "127.0.0.1", port: 19999, protocol: "http:", display: "localhost:19999" };
     handleRequest(mockWs, "1", "tunnel:connect", {
       request_id: "req5",
       method: "GET",
@@ -157,7 +159,7 @@ describe("handleRequest", () => {
       query_string: "",
       headers: [],
       body: "",
-    }, 19999, nextRef, log);
+    }, badTarget, nextRef, log);
 
     await new Promise((resolve) => setTimeout(resolve, 200));
 
@@ -179,7 +181,7 @@ describe("handleRequest", () => {
       query_string: "",
       headers: [],
       body: "",
-    }, localPort, nextRef, log);
+    }, localTarget, nextRef, log);
 
     await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -198,7 +200,7 @@ describe("handleRequest", () => {
       query_string: "",
       headers: [],
       body: "",
-    }, localPort, nextRef, log);
+    }, localTarget, nextRef, log);
 
     await new Promise((resolve) => setTimeout(resolve, 100));
 

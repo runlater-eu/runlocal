@@ -29,7 +29,7 @@ describe("createConnection", () => {
   it("sends phx_join on open", () => {
     createConnection({
       host: "wss://test.com",
-      port: 3000,
+      target: { hostname: "127.0.0.1", port: 3000, protocol: "http:", display: "localhost:3000" },
       WebSocket: MockWebSocket,
       log,
       logError,
@@ -47,7 +47,7 @@ describe("createConnection", () => {
   it("starts heartbeat interval on open", () => {
     createConnection({
       host: "wss://test.com",
-      port: 3000,
+      target: { hostname: "127.0.0.1", port: 3000, protocol: "http:", display: "localhost:3000" },
       WebSocket: MockWebSocket,
       log,
       logError,
@@ -62,7 +62,7 @@ describe("createConnection", () => {
     let tunnelPayload = null;
     createConnection({
       host: "wss://test.com",
-      port: 3000,
+      target: { hostname: "127.0.0.1", port: 3000, protocol: "http:", display: "localhost:3000" },
       WebSocket: MockWebSocket,
       onTunnelCreated: (payload) => { tunnelPayload = payload; },
       log,
@@ -80,7 +80,7 @@ describe("createConnection", () => {
   it("logs tunnel URL and inspect URL with token on tunnel_created", () => {
     createConnection({
       host: "wss://test.com",
-      port: 3000,
+      target: { hostname: "127.0.0.1", port: 3000, protocol: "http:", display: "localhost:3000" },
       WebSocket: MockWebSocket,
       log,
       logError,
@@ -99,7 +99,7 @@ describe("createConnection", () => {
   it("handles phx_reply success", () => {
     createConnection({
       host: "wss://test.com",
-      port: 3000,
+      target: { hostname: "127.0.0.1", port: 3000, protocol: "http:", display: "localhost:3000" },
       WebSocket: MockWebSocket,
       log,
       logError,
@@ -117,7 +117,7 @@ describe("createConnection", () => {
   it("handles phx_reply error", () => {
     createConnection({
       host: "wss://test.com",
-      port: 3000,
+      target: { hostname: "127.0.0.1", port: 3000, protocol: "http:", display: "localhost:3000" },
       WebSocket: MockWebSocket,
       log,
       logError,
@@ -135,7 +135,7 @@ describe("createConnection", () => {
     let closed = false;
     createConnection({
       host: "wss://test.com",
-      port: 3000,
+      target: { hostname: "127.0.0.1", port: 3000, protocol: "http:", display: "localhost:3000" },
       WebSocket: MockWebSocket,
       onClose: () => { closed = true; },
       log,
@@ -157,7 +157,7 @@ describe("createConnection", () => {
 
     createConnection({
       host: "wss://test.com",
-      port: 3000,
+      target: { hostname: "127.0.0.1", port: 3000, protocol: "http:", display: "localhost:3000" },
       WebSocket: TrackedWebSocket,
       log,
       logError,

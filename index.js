@@ -6,7 +6,7 @@ const { parseArgs, createConnection } = require("./lib");
 const BOLD = "\x1b[1m";
 const RESET = "\x1b[0m";
 
-const { port, host, apiKey, subdomain } = parseArgs(process.argv.slice(2));
+const { target, host, apiKey, subdomain } = parseArgs(process.argv.slice(2));
 
-console.log(`${BOLD}runlocal${RESET} — expose localhost:${port} to the internet`);
-createConnection({ host, port, apiKey, subdomain, WebSocket });
+console.log(`${BOLD}runlocal${RESET} — expose ${target.display} to the internet`);
+createConnection({ host, target, apiKey, subdomain, WebSocket });
